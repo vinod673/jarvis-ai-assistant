@@ -1,9 +1,25 @@
 import time
-import winsound
+import sys
 import random
 from colorama import Fore, Style, init
 
 init(autoreset=True)
+
+try:
+    import winsound
+except ImportError:
+    winsound = None
+
+def play_beep(freq=1200, duration=150):
+    if winsound:
+        try:
+            winsound.Beep(freq, duration)
+            return
+        except Exception:
+            pass
+    # Cross-platform terminal bell fallback
+    sys.stdout.write('\a')
+    sys.stdout.flush()
 
 import config
 from audio.speaker import speak
@@ -78,7 +94,7 @@ def dispatch_task(intent, params, spoken):
             pass # AI integrates weather naturally into conversation
         elif intent == "set_timer":
             mins = float(params.get("minutes", 1))
-            system_control.start_timer(mins, lambda: (winsound.Beep(1200, 500), speak(f"Pardon the interruption, sir, but your {mins} minute timer has just expired.")))
+            system_control.start_timer(mins, lambda: (play_beep(1200, 500), speak(f"Pardon the interruption, sir, but your {mins} minute timer has just expired.")))
         elif intent == "clipboard_read":
             txt = system_control.get_clipboard_text()
             speak(f"Your clipboard contains: {txt}" if txt else "Your clipboard is currently empty, sir.")
@@ -114,10 +130,9 @@ def main_loop():
     android_integration.run_server_in_background()
     print(Fore.GREEN + "[Bridge] Android WebSocket Server listening on port 8765.")
 
-    # 2. Calibrate Microphone
-    print(Fore.YELLOW + "[Audio] Calibrating microphone ambient noise floor...", end="\r")
+    # 2. Calibrate Microphone / Input Method
+    print(Fore.YELLOW + "[Audio] Initializing input system...", end="\r")
     baseline, thresh = calibrate_mic(0.8)
-    print(Fore.GREEN + f"[Audio] Calibrated: Noise Floor = {baseline:.1f} RMS | Speech Threshold = {thresh:.1f} RMS")
 
     # 3. Boot Greeting
     boot_greetings = [
@@ -136,7 +151,7 @@ def main_loop():
 
             # If user said just "Jarvis" without immediate trailing command
             if is_wake and not cmd:
-                winsound.Beep(1200, 80)
+                play_beep(1200, 80)
                 greeting = random.choice(WAKE_GREETINGS)
                 speak(greeting, async_mode=False) # Wait for speech to complete
                 time.sleep(0.08) # Echo decay

@@ -1,23 +1,48 @@
 import time
+import sys
 import queue
 import collections
 import re
-import winsound
-import numpy as np
-import sounddevice as sd
-import speech_recognition as sr
 from colorama import Fore, Style
 import config
 from audio import speaker
 
+try:
+    import winsound
+except ImportError:
+    winsound = None
+
+def _beep(freq=1200, duration=80):
+    if winsound:
+        try:
+            winsound.Beep(freq, duration)
+            return
+        except Exception:
+            pass
+    sys.stdout.write('\a')
+    sys.stdout.flush()
+
+try:
+    import numpy as np
+    import sounddevice as sd
+    import speech_recognition as sr
+    AUDIO_LIBS_AVAILABLE = True
+except Exception:
+    AUDIO_LIBS_AVAILABLE = False
+
 ambient_rms_baseline = 200.0
 speech_threshold = 400.0
-mic_available = True
+mic_available = AUDIO_LIBS_AVAILABLE
 _audio_q = queue.Queue()
 
 def calibrate_mic(duration=0.8):
-    """Calibrates microphone ambient noise floor and sets adaptive threshold."""
+    """Calibrates microphone ambient noise floor or activates keyboard console mode."""
     global ambient_rms_baseline, speech_threshold, mic_available
+    if not AUDIO_LIBS_AVAILABLE:
+        mic_available = False
+        print(Fore.YELLOW + "[Input] Audio hardware libraries not detected. Operating in Interactive Terminal Mode.")
+        return 100.0, 400.0
+
     try:
         sample_rate = 16000
         frames = int(sample_rate * duration)
@@ -25,28 +50,29 @@ def calibrate_mic(duration=0.8):
         sd.wait()
         rms = float(np.sqrt(np.mean(recording.astype(np.float32)**2)))
         ambient_rms_baseline = max(50.0, rms)
-        # Adaptive threshold: ambient noise + margin, capped to remain sensitive to normal speech
         speech_threshold = max(300.0, min(1200.0, ambient_rms_baseline * 1.6 + 150.0))
         mic_available = True
+        print(Fore.GREEN + f"[Audio] Calibrated: Noise Floor = {ambient_rms_baseline:.1f} RMS | Speech Threshold = {speech_threshold:.1f} RMS")
         return ambient_rms_baseline, speech_threshold
     except Exception as e:
         mic_available = False
-        print(Fore.YELLOW + f"[Mic Warning] Microphone unavailable ({e}). Using keyboard input.")
+        print(Fore.YELLOW + f"[Mic Warning] Microphone initialization failed ({e}). Switching to Interactive Terminal Mode.")
         return 100.0, 400.0
 
 def _recognize_audio(audio_data, sample_rate):
-    """Transcribes audio using Google Speech Recognition with Indian English and US English fallback."""
+    """Transcribes audio using Google Speech Recognition."""
+    if not AUDIO_LIBS_AVAILABLE:
+        return ""
     r = sr.Recognizer()
-    
-    # Gain normalization to boost quiet speech
+
     peak = int(np.max(np.abs(audio_data)))
     if peak > 0 and peak < 16000:
         gain = min(8.0, 22000.0 / peak)
         audio_data = np.clip(audio_data * gain, -32768, 32767).astype(np.int16)
-        
+
     aud = sr.AudioData(audio_data.tobytes(), sample_rate, 2)
     primary_lang = getattr(config, "SPEECH_LANGUAGE", "en-IN")
-    
+
     try:
         text = r.recognize_google(aud, language=primary_lang)
         return text.strip().lower()
@@ -66,7 +92,7 @@ def _recognize_audio(audio_data, sample_rate):
 def listen_vad(timeout=None, phrase_time_limit=10.0):
     """Listens with rolling pre-roll buffer so starting consonants are never cut off."""
     global mic_available, speech_threshold
-    if not mic_available:
+    if not mic_available or not AUDIO_LIBS_AVAILABLE:
         return ""
 
     sample_rate = 16000
@@ -89,8 +115,7 @@ def listen_vad(timeout=None, phrase_time_limit=10.0):
         with sd.InputStream(samplerate=sample_rate, channels=1, dtype='int16', blocksize=frames_per_buffer, callback=callback):
             while True:
                 chunk = q.get()
-                
-                # If Jarvis is speaking out loud, ignore
+
                 if speaker.is_speaking():
                     is_speaking = False
                     buffer = []
@@ -106,7 +131,6 @@ def listen_vad(timeout=None, phrase_time_limit=10.0):
                         is_speaking = True
                         speech_start_time = time.time()
                         silence_timer = 0.0
-                        # Prepend pre-roll chunks so the beginning of the word is intact
                         buffer = list(preroll)
                     elif timeout and (time.time() - start_time) > timeout:
                         return ""
@@ -131,19 +155,19 @@ def extract_wake_and_command(query):
     """Extracts wake word variants and any immediately following single-shot command."""
     if not query:
         return None, False
-        
+
     variants = getattr(config, "WAKE_VARIANTS", ["jarvis", "hey jarvis", "travis", "service", "javis"])
     query_lower = query.lower().strip()
-    
+
     matched = False
     for v in variants:
         if v in query_lower:
             matched = True
             break
-            
+
     if not matched:
         return None, False
-        
+
     cleaned = re.sub(r'^(hey\s+|hi\s+|ok\s+)?(jarvis|travis|service|javis|jarves|harvest)[,\s]*', '', query_lower, flags=re.IGNORECASE).strip()
     return cleaned, True
 
@@ -152,10 +176,10 @@ def listen_for_command():
     if not mic_available:
         try:
             return input(Fore.YELLOW + "\nYOU (Type) > " + Style.RESET_ALL).strip()
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
             return ""
 
-    winsound.Beep(1400, 80)
+    _beep(1400, 80)
     print(Fore.GREEN + Style.BRIGHT + "[MIC ACTIVE - SPEAK YOUR COMMAND NOW]" + Style.RESET_ALL)
     query = listen_vad(timeout=8.0, phrase_time_limit=12.0)
     if query:
@@ -164,17 +188,22 @@ def listen_for_command():
     return ""
 
 def listen_wake_word():
-    """Passive listening loop detecting wake words and single-shot commands."""
+    """Passive listening loop detecting wake words, or interactive keyboard prompt."""
     if not mic_available:
         try:
-            cmd = input(Fore.YELLOW + "\nYOU (Type command, 'exit' to quit) > " + Style.RESET_ALL).strip()
-            return cmd, False
-        except EOFError:
+            cmd = input(Fore.YELLOW + "\nYOU (Type command, or 'exit' to quit) > " + Style.RESET_ALL).strip()
+            if not cmd:
+                return "", False
+            cleaned, is_wake = extract_wake_and_command(cmd)
+            if is_wake:
+                return cleaned, True
+            return cmd, True
+        except (EOFError, KeyboardInterrupt):
             return "", False
 
     wake_words = getattr(config, "WAKE_WORDS", ["jarvis", "hey jarvis"])
     print(Fore.LIGHTBLACK_EX + f"Passive listening for {wake_words}... (Press Ctrl+C to stop)" + Style.RESET_ALL, end="\r")
-    
+
     query = listen_vad(timeout=None, phrase_time_limit=8.0)
     if not query:
         return "", False
@@ -182,10 +211,10 @@ def listen_wake_word():
     cmd, is_wake = extract_wake_and_command(query)
     if is_wake:
         if cmd:
-            winsound.Beep(1500, 80)
+            _beep(1500, 80)
             print(Fore.GREEN + f"YOU (Single-shot) > " + Fore.WHITE + cmd + " " * 20)
             return cmd, True
         else:
             return "", True
-            
+
     return "", False

@@ -1,45 +1,79 @@
-# Jarvis Pro - Autonomous AI Voice Assistant
+# Jarvis Pro - Autonomous AI Voice & Terminal Assistant
 
-An advanced, intelligent AI Voice Assistant powered by Google Gemini 2.5 Flash, Windows SAPI / Neural TTS, real-time voice activity detection (VAD), system automation, and Android mobile integration.
+An advanced, intelligent personal AI companion powered by Google Gemini 2.5 Flash, Microsoft Edge Neural TTS / Windows SAPI, real-time Voice Activity Detection (VAD), system automation, and Android mobile integration.
+
+Works seamlessly on **Windows Desktop** and **Android (via Termux)**!
+
+---
 
 ## Key Features
 
-- **Fast & Natural Voice Interaction**: Hybrid Windows SAPI / Neural text-to-speech engine with zero lag.
-- **Dynamic Human Personality**: Responds with warmth, wit, and conversational variety powered by Gemini 2.5 Flash.
-- **Real-Time Voice Activity Detection (VAD)**: Adaptive microphone thresholding and wake-word detection.
-- **System Automation & Control**:
-  - Volume, brightness, battery, system status monitoring.
-  - Application launching, window minimization/maximization.
-  - Browser research, web searches, and YouTube media playback.
-- **Persistent Memory**: Conversational memory manager (`jarvis_brain.json`) for multi-turn context retention.
-- **Android Bridge**: Real-time WebSocket connection to Android companion device.
+- **Dynamic Human Personality**: Speaks with genuine depth, wit, emotional intelligence, and conversational variety.
+- **Fast Natural Voice**:
+  - Windows: Edge Neural TTS with SAPI instant fallback and zero audio freezing.
+  - Android (Termux): Native Android TTS via `termux-api` or interactive colored terminal dialogue.
+- **Cross-Platform Dual Mode**:
+  - **Voice Mode**: Adaptive microphone thresholding and wake-word detection.
+  - **Terminal / Console Mode**: Fast keyboard dialogue when running in mobile/headless environments without audio drivers.
+- **Comprehensive Automation**:
+  - System volume, brightness, battery metrics, clipboard.
+  - Application launching, browser research, YouTube media streaming.
+- **Persistent Conversational Memory**: Context retention across interactions using `jarvis_brain.json`.
+- **Android Companion Bridge**: WebSocket server for companion device connectivity.
 
-## Setup & Installation
+---
 
-1. **Clone the repository**:
+## 💻 Running on Windows
+
+1. **Clone repository**:
    ```bash
    git clone https://github.com/vinod673/jarvis-ai-assistant.git
    cd jarvis-ai-assistant
    ```
 
-2. **Create virtual environment**:
+2. **Create virtual environment & install**:
    ```bash
    python -m venv venv
    venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
    pip install -r requirements.txt
    ```
 
-4. **Configure Environment**:
+3. **Configure Environment**:
    Copy `.env.example` to `.env` and insert your Gemini API Key:
    ```env
-   GEMINI_API_KEY=your_api_key_here
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
+4. **Run Jarvis**:
+   ```bash
+   python jarvis.py
+   ```
+
+---
+
+## 📱 Running on Android (Termux)
+
+1. **Install Termux** and open it.
+2. **Install prerequisites in Termux**:
+   ```bash
+   pkg update && pkg upgrade -y
+   pkg install python git -y
+   pkg install termux-api mpv -y   # Optional: For Android text-to-speech & audio
+   ```
+3. **Clone & Install**:
+   ```bash
+   git clone https://github.com/vinod673/jarvis-ai-assistant.git
+   cd jarvis-ai-assistant
+   pip install -r requirements.txt
+   ```
+4. **Configure your API Key**:
+   ```bash
+   cp .env.example .env
+   # Edit .env and paste your GEMINI_API_KEY:
+   echo "GEMINI_API_KEY=your_api_key_here" > .env
+   ```
 5. **Run Jarvis**:
    ```bash
    python jarvis.py
    ```
+   *Jarvis will initialize in Interactive Terminal Mode. You can chat, give commands, or manage your system directly from your phone!*

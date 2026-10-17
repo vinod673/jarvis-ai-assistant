@@ -5,7 +5,12 @@ import subprocess
 os.environ["PYTHONUNBUFFERED"] = "1"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-VENV_PYTHON = os.path.join(BASE_DIR, "venv", "Scripts", "python.exe")
+
+# Cross-platform venv python path detection
+if sys.platform == "win32":
+    VENV_PYTHON = os.path.join(BASE_DIR, "venv", "Scripts", "python.exe")
+else:
+    VENV_PYTHON = os.path.join(BASE_DIR, "venv", "bin", "python")
 
 if os.path.exists(VENV_PYTHON):
     current_python = os.path.abspath(sys.executable).lower()

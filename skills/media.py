@@ -3,23 +3,38 @@ import re
 import urllib.parse
 import urllib.request
 import webbrowser
-import pyautogui
-import yt_dlp
+import shutil
+import subprocess
+
+try:
+    import pyautogui
+except (ImportError, KeyError):
+    pyautogui = None
+
+try:
+    import yt_dlp
+except ImportError:
+    yt_dlp = None
 
 def media_control(action):
-    mapping = {
-        "play_pause": "playpause",
-        "play": "playpause",
-        "pause": "playpause",
-        "next": "nexttrack",
-        "prev": "prevtrack",
-        "volume_up": "volumeup",
-        "volume_down": "volumedown",
-        "mute": "volumemute"
-    }
-    key = mapping.get(action.lower(), "playpause")
-    pyautogui.press(key)
-    return f"Media command: {action}."
+    if pyautogui:
+        try:
+            mapping = {
+                "play_pause": "playpause",
+                "play": "playpause",
+                "pause": "playpause",
+                "next": "nexttrack",
+                "prev": "prevtrack",
+                "volume_up": "volumeup",
+                "volume_down": "volumedown",
+                "mute": "volumemute"
+            }
+            key = mapping.get(action.lower(), "playpause")
+            pyautogui.press(key)
+            return f"Media command: {action}."
+        except Exception:
+            pass
+    return f"Media hotkey control not available in terminal environment."
 
 def play_youtube(query):
     query_clean = urllib.parse.quote(query)
@@ -30,35 +45,42 @@ def play_youtube(query):
         video_ids = re.findall(r'/watch\?v=([a-zA-Z0-9_-]{11})', html)
         if video_ids:
             target_url = f"https://www.youtube.com/watch?v={video_ids[0]}"
-            webbrowser.open(target_url)
+            if shutil.which("termux-open-url"):
+                subprocess.run(["termux-open-url", target_url])
+            else:
+                webbrowser.open(target_url)
             return f"Playing {query} on YouTube."
     except Exception:
         pass
-    webbrowser.open(url)
-    return f"Searching YouTube for {query}."
+
+    fallback_url = f"https://www.youtube.com/results?search_query={query_clean}"
+    if shutil.which("termux-open-url"):
+        subprocess.run(["termux-open-url", fallback_url])
+    else:
+        webbrowser.open(fallback_url)
+    return f"Opened YouTube search for {query}."
 
 def download_media(query, media_type="audio"):
-    downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
-    os.makedirs(downloads, exist_ok=True)
-    
-    if media_type == "video":
-        opts = {
-            'format': 'best[ext=mp4]/best',
-            'outtmpl': os.path.join(downloads, '%(title)s.%(ext)s'),
-            'noplaylist': True,
-        }
-    else:
-        opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio',
-            'outtmpl': os.path.join(downloads, '%(title)s.%(ext)s'),
-            'noplaylist': True,
-        }
-
-    search = query if query.startswith("http") else f"ytsearch1:{query}"
+    if not yt_dlp:
+        return "Media downloader library yt_dlp is not installed."
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(search, download=True)
-            title = info.get('title', query)
-            return f"Downloaded '{title}' to your Downloads folder."
+        home = os.path.expanduser('~')
+        dl_dir = os.path.join(home, "Downloads", "Jarvis_Media")
+        os.makedirs(dl_dir, exist_ok=True)
+        
+        ydl_opts = {
+            'outtmpl': os.path.join(dl_dir, '%(title)s.%(ext)s'),
+            'quiet': True,
+            'no_warnings': True,
+            'default_search': 'ytsearch1:'
+        }
+        if media_type == "audio":
+            ydl_opts['format'] = 'bestaudio/best'
+        else:
+            ydl_opts['format'] = 'bestvideo+bestaudio/best'
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([query])
+        return f"Download completed for {query}."
     except Exception as e:
-        return f"Download error: {e}"
+        return f"Download encountered an issue: {e}"
