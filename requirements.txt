@@ -1,0 +1,11 @@
+SpeechRecognition
+google-generativeai
+pyautogui
+AppOpener
+screen-brightness-control
+pycaw
+python-dotenv
+pyaudio
+comtypes
+pyttsx3
+keyboard
