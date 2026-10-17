@@ -3,7 +3,13 @@ import sys
 import queue
 import collections
 import re
-from colorama import Fore, Style
+try:
+    from colorama import Fore, Style
+except (ImportError, Exception):
+    class DummyColor:
+        def __getattr__(self, name): return ""
+    Fore = DummyColor()
+    Style = DummyColor()
 import config
 from audio import speaker
 

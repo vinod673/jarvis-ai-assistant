@@ -1,7 +1,12 @@
 import requests
-from bs4 import BeautifulSoup
 import urllib.parse
+import re
 import config
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
 
 def get_weather(city=""):
     try:
@@ -19,14 +24,20 @@ def search_duckduckgo(query):
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         resp = requests.get(url, headers=headers, timeout=8)
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        results = []
-        for body in soup.select('.result__body')[:3]:
-            a = body.select_one('.result__a')
-            snip = body.select_one('.result__snippet')
-            if a and snip:
-                results.append(f"{a.text.strip()}: {snip.text.strip()}")
-        return "\n".join(results)
+        if BeautifulSoup:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            results = []
+            for body in soup.select('.result__body')[:3]:
+                a = body.select_one('.result__a')
+                snip = body.select_one('.result__snippet')
+                if a and snip:
+                    results.append(f"{a.text.strip()}: {snip.text.strip()}")
+            return "\n".join(results)
+        else:
+            # Clean fallback using basic regex if BeautifulSoup is not yet installed
+            raw = re.sub(r'<[^>]+>', ' ', resp.text)
+            clean = " ".join(raw.split())[:300]
+            return clean
     except Exception:
         return ""
 

@@ -7,10 +7,22 @@ import subprocess
 import threading
 import asyncio
 import queue
-import edge_tts
-from colorama import Fore, Style, init
 
-init(autoreset=True)
+try:
+    from colorama import Fore, Style, init
+    init(autoreset=True)
+except ImportError:
+    class DummyColor:
+        def __getattr__(self, name): return ""
+    Fore = DummyColor()
+    Style = DummyColor()
+
+try:
+    import edge_tts
+    EDGE_TTS_AVAILABLE = True
+except ImportError:
+    edge_tts = None
+    EDGE_TTS_AVAILABLE = False
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -54,7 +66,6 @@ def _play_audio(audio_path):
             winmm.mciSendStringW(f'close {alias}', None, 0, 0)
             return True
         except Exception as e:
-            print(f"[Audio Error] WinMM playback error: {e}")
             return False
     elif shutil.which("mpv"):
         try:
@@ -98,7 +109,7 @@ def _speech_worker_loop():
                     break
             sp.Rate = 1
             sapi_voice = sp
-        except Exception as e:
+        except Exception:
             pass
 
     while True:
@@ -118,7 +129,7 @@ def _speech_worker_loop():
             except Exception:
                 played_neural = False
 
-        if not played_neural:
+        if not played_neural and EDGE_TTS_AVAILABLE:
             try:
                 import config
                 voice = getattr(config, "TTS_VOICE", "en-GB-RyanNeural")

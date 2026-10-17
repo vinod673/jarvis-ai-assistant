@@ -1,9 +1,14 @@
 import time
 import sys
 import random
-from colorama import Fore, Style, init
-
-init(autoreset=True)
+try:
+    from colorama import Fore, Style, init
+    init(autoreset=True)
+except (ImportError, Exception):
+    class DummyColor:
+        def __getattr__(self, name): return ""
+    Fore = DummyColor()
+    Style = DummyColor()
 
 try:
     import winsound

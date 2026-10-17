@@ -27,3 +27,8 @@ jarvis_brain.json
 # IDE & Editor folders
 .vscode/
 .idea/
+
+# Screenshots & Images
+*.jpeg
+*.jpg
+*.png
